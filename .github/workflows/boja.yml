@@ -1,8 +1,8 @@
-name: Comprobación diaria BOJA
+name: Comprobación diaria BOJA Telegram
 
 on:
   schedule:
-    - cron: '0 16 * * *'  # 18:00 hora peninsular
+    - cron: '0 12 * * *'  # 18:00 hora peninsular
   workflow_dispatch:
 
 jobs:

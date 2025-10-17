@@ -79,7 +79,7 @@ def obtener_enlace_sumario(url_boletin):
         return None
 
     url_sumario = urljoin(url_boletin, href)
-    enviar_telegram(f"📎 Enlace al sumario encontrado:\n{url_sumario}")
+    # enviar_telegram(f"📎 Enlace al sumario encontrado:\n{url_sumario}")
     return url_sumario
 
 def descargar_y_extraer_pdf(url_pdf):
