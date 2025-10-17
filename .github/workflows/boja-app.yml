@@ -1,8 +1,8 @@
-name: Comprobación diaria BOJA
+name: Comprobación diaria BOJA Telegram
 
 on:
   schedule:
-    - cron: '0 16 * * *'  # 18:00 hora peninsular
+    - cron: '0 12 * * *'  # 14:00 hora peninsular
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,6 @@ jobs:
 
       - name: Ejecutar script
         env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_DEST: ${{ secrets.EMAIL_DEST }}
-        run: python app.py
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python boja-app.py
