@@ -1,0 +1,29 @@
+name: Comprobación diaria BOJA
+
+on:
+  schedule:
+    - cron: '0 16 * * *'  # 18:00 hora peninsular
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Ejecutar script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_DEST: ${{ secrets.EMAIL_DEST }}
+        run: python app.py
