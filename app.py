@@ -14,9 +14,6 @@ def enviar_telegram(mensaje):
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    token = "8338401023:AAHyqYw44tawpyDe0e5YEZl1cf3gkO-w4e8"
-    chat_id = "1199732214"
-
     if not token or not chat_id:
         print("⚠️ No hay TOKEN o CHAT_ID configurados.")
         return
@@ -79,7 +76,6 @@ def obtener_enlace_sumario(url_boletin):
         return None
 
     url_sumario = urljoin(url_boletin, href)
-    # enviar_telegram(f"📎 Enlace al sumario encontrado:\n{url_sumario}")
     return url_sumario
 
 def descargar_y_extraer_pdf(url_pdf):
