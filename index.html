@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BOJA Checker</title>
+<title>BOJA Checker Mejorado</title>
 <style>
 body { font-family: sans-serif; background: #f8f9fa; margin: 2rem; color: #222; }
-h1 { color: #005500; margin-bottom: 1.5rem; }
+h1 { color: #005500; margin-bottom: 2rem; }
 #controls { display: flex; flex-direction: column; gap: 1rem; max-width: 700px; }
 input[type="text"] { padding: 10px; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; width: 100%; }
 button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem; width: fit-content; }
 button:hover { background: #218838; }
 #info { margin-top: 2rem; font-weight: bold; }
-#resultado { margin-top: 2rem; white-space: pre-wrap; line-height: 1.5; }
+#resultado { margin-top: 2rem; line-height: 1.6; white-space: pre-wrap; }
 mark { background: #9f9; font-weight: bold; }
 </style>
 </head>
 <body>
-<h1>📜 Comprobador BOJA</h1>
+<h1>📜 Comprobador BOJA Mejorado</h1>
 
 <div id="controls">
   <label for="textoBuscado"><b>Texto a buscar:</b></label>
@@ -40,28 +40,41 @@ document.getElementById("buscar").addEventListener("click", async () => {
 
   info.textContent = "🔍 Cargando sumario...";
   try {
-    const resp = await fetch("sumario.txt");
-    if (!resp.ok) throw new Error("No se pudo leer sumario.txt");
-    let texto = await resp.text();
+    let texto = await fetch("sumario.txt").then(r => r.text());
 
-    const textoLower = texto.toLowerCase();
-    const fraseLower = frase.toLowerCase();
+    // ----------- LIMPIEZA DEL TEXTO -----------
+    // separar en líneas
+    let lineas = texto.split(/\r?\n/);
+    lineas = lineas.map(l => l.trim())
+      .filter(l => l.length > 1) // eliminar líneas vacías o muy cortas
+      .filter(l => !/^[a-zA-Z0-9]$/.test(l)) // eliminar líneas con solo una letra o número
+      .filter(l => !/^https?:\/\//i.test(l)); // eliminar URLs
 
-    // Buscar primera coincidencia exacta
-    let similitud = 0;
-    let pos = textoLower.indexOf(fraseLower);
-    if (pos >= 0) {
-      similitud = 100;
-      texto = texto.slice(0,pos) + "<mark>" + texto.slice(pos,pos+frase.length) + "</mark>" + texto.slice(pos+frase.length);
-    } else {
-      // aproximación simple: % de palabras coincidentes
-      const palabras = fraseLower.split(/\s+/).filter(Boolean);
-      const coincidencias = palabras.filter(p => textoLower.includes(p));
-      similitud = palabras.length ? Math.round(coincidencias.length / palabras.length * 100) : 0;
+    // Concatenar líneas cortas para menos saltos de línea
+    const MIN_PALABRAS = 5;
+    let limpio = [];
+    let buffer = "";
+    for (const l of lineas) {
+      const palabras = l.split(/\s+/).length;
+      if ((buffer.split(/\s+/).length + palabras) < MIN_PALABRAS) {
+        buffer += (buffer ? " " : "") + l;
+      } else {
+        if (buffer) limpio.push(buffer);
+        buffer = l;
+      }
     }
+    if (buffer) limpio.push(buffer);
+
+    texto = limpio.join("\n");
+
+    // ----------- RESALTAR TODAS LAS COINCIDENCIAS -----------
+    const regex = new RegExp(frase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), "gi");
+    let coincidencias = texto.match(regex);
+    let similitud = coincidencias ? 100 : 0;
+    texto = texto.replace(regex, match => `<mark>${match}</mark>`);
 
     resultado.innerHTML = `<p><b>Similitud:</b> ${similitud}%</p><hr>${texto}`;
-    info.textContent = "✅ Sumario cargado y analizado.";
+    info.textContent = `✅ Sumario cargado y analizado. ${coincidencias ? coincidencias.length + " coincidencias encontradas." : "No se encontraron coincidencias."}`;
   } catch(err) {
     info.textContent = "❌ Error: " + err;
   }
