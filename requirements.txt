@@ -1,5 +1,0 @@
-playwright
-requests
-beautifulsoup4
-rapidfuzz
-pdfminer.six
