@@ -4,57 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BOJA Checker</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-body {
-  font-family: sans-serif;
-  background: #f8f9fa;
-  margin: 2rem;
-  color: #222;
-}
-h1 {
-  color: #005500;
-  margin-bottom: 1.5rem;
-}
-#controls {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 600px;
-}
-input[type="text"] {
-  padding: 10px;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  width: 100%;
-}
-button {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  width: fit-content;
-}
-button:hover {
-  background: #218838;
-}
-#info {
-  margin-top: 2rem;
-  font-weight: bold;
-}
-#resultado {
-  margin-top: 2rem;
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-mark {
-  background: #9f9;
-  font-weight: bold;
-}
+body { font-family: sans-serif; background: #f8f9fa; margin: 2rem; color: #222; }
+h1 { color: #005500; margin-bottom: 1.5rem; }
+#controls { display: flex; flex-direction: column; gap: 1rem; max-width: 700px; }
+input[type="text"] { padding: 10px; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; width: 100%; }
+button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem; width: fit-content; }
+button:hover { background: #218838; }
+#info { margin-top: 2rem; font-weight: bold; }
+#resultado { margin-top: 2rem; white-space: pre-wrap; line-height: 1.5; }
+mark { background: #9f9; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -62,8 +21,8 @@ mark {
 
 <div id="controls">
   <label for="textoBuscado"><b>Texto a buscar:</b></label>
-  <input id="textoBuscado" type="text" placeholder="Escribe aquí la frase que quieres buscar en el BOJA">
-  <button id="buscar">Buscar frase en el último BOJA</button>
+  <input id="textoBuscado" type="text" placeholder="Escribe aquí la frase que quieres buscar">
+  <button id="buscar">Buscar frase en el sumario</button>
 </div>
 
 <div id="info"></div>
@@ -71,79 +30,39 @@ mark {
 
 <script>
 document.getElementById("buscar").addEventListener("click", async () => {
-  const fraseObjetivo = document.getElementById("textoBuscado").value.trim();
+  const frase = document.getElementById("textoBuscado").value.trim();
   const info = document.getElementById("info");
   const resultado = document.getElementById("resultado");
   info.textContent = "";
   resultado.textContent = "";
 
-  if (!fraseObjetivo) {
-    info.textContent = "⚠️ Escribe un texto antes de buscar.";
-    return;
-  }
+  if (!frase) { info.textContent = "⚠️ Escribe un texto antes de buscar."; return; }
 
-  info.textContent = "Buscando último BOJA...";
-
+  info.textContent = "🔍 Cargando sumario...";
   try {
-    // 1. Obtener HTML principal
-    const resp = await fetch("https://www.juntadeandalucia.es/boja/");
-    const text = await resp.text();
+    const resp = await fetch("sumario.txt");
+    if (!resp.ok) throw new Error("No se pudo leer sumario.txt");
+    let texto = await resp.text();
 
-    // 2. Encontrar enlace al último BOJA
-    const match = text.match(/href="(\/eboja\/\d{4}\/\d+\/index\.html)"/);
-    if (!match) {
-      info.textContent = "❌ No se pudo localizar el último boletín.";
-      return;
-    }
-    const urlBoletin = "https://www.juntadeandalucia.es" + match[1];
-    info.innerHTML = `➡️ Último boletín: <a href="${urlBoletin}" target="_blank">${urlBoletin}</a>`;
-
-    // 3. Buscar PDF del sumario
-    const resp2 = await fetch(urlBoletin);
-    const htmlBoja = await resp2.text();
-    const matchPdf = htmlBoja.match(/href="([^"]+sumario[^"]+\.pdf)"/i);
-    if (!matchPdf) {
-      info.textContent = "❌ No se encontró el PDF del sumario.";
-      return;
-    }
-    let urlPdf = matchPdf[1];
-    if (!urlPdf.startsWith("http")) urlPdf = new URL(urlPdf, urlBoletin).href;
-
-    info.innerHTML += `<br>📄 Descargando sumario: <a href="${urlPdf}" target="_blank">${urlPdf}</a>`;
-
-    // 4. Descargar PDF y extraer texto con pdf.js
-    const pdfBytes = await fetch(urlPdf).then(r => r.arrayBuffer());
-    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-    let texto = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      texto += content.items.map(it => it.str).join(" ") + "\n";
-    }
-
-    // 5. Buscar frase (búsqueda aproximada simple)
     const textoLower = texto.toLowerCase();
-    const fraseLower = fraseObjetivo.toLowerCase();
-    const pos = textoLower.indexOf(fraseLower);
-    let similitud = 0;
+    const fraseLower = frase.toLowerCase();
 
+    // Buscar primera coincidencia exacta
+    let similitud = 0;
+    let pos = textoLower.indexOf(fraseLower);
     if (pos >= 0) {
       similitud = 100;
-      texto =
-        texto.slice(0, pos) +
-        "<mark>" +
-        texto.slice(pos, pos + fraseObjetivo.length) +
-        "</mark>" +
-        texto.slice(pos + fraseObjetivo.length);
+      texto = texto.slice(0,pos) + "<mark>" + texto.slice(pos,pos+frase.length) + "</mark>" + texto.slice(pos+frase.length);
     } else {
-      // Coincidencia parcial: contar palabras presentes
-      const palabras = fraseLower.split(/\s+/);
+      // aproximación simple: % de palabras coincidentes
+      const palabras = fraseLower.split(/\s+/).filter(Boolean);
       const coincidencias = palabras.filter(p => textoLower.includes(p));
-      similitud = Math.round((coincidencias.length / palabras.length) * 100);
+      similitud = palabras.length ? Math.round(coincidencias.length / palabras.length * 100) : 0;
     }
 
     resultado.innerHTML = `<p><b>Similitud:</b> ${similitud}%</p><hr>${texto}`;
-  } catch (err) {
+    info.textContent = "✅ Sumario cargado y analizado.";
+  } catch(err) {
     info.textContent = "❌ Error: " + err;
   }
 });

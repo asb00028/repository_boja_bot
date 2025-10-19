@@ -1,0 +1,35 @@
+name: Actualizar BOJA
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Cada hora
+  workflow_dispatch:
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright requests beautifulsoup4 pdfminer.six
+          playwright install
+
+      - name: Ejecutar script BOJA
+        run: python actualizar_boja.py
+
+      - name: Commit y push
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add sumario.txt
+          git commit -m "Actualizar sumario BOJA [Automático]" || echo "No hay cambios"
+          git push
