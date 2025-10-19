@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BOJA Checker Mejorado</title>
+<title>BOJA Checker Inteligente</title>
 <style>
 body { font-family: sans-serif; background: #f8f9fa; margin: 2rem; color: #222; }
 h1 { color: #005500; margin-bottom: 2rem; }
@@ -17,7 +17,7 @@ mark { background: #9f9; font-weight: bold; }
 </style>
 </head>
 <body>
-<h1>📜 Comprobador BOJA</h1>
+<h1>📜 Comprobador BOJA Inteligente</h1>
 
 <div id="controls">
   <label for="textoBuscado"><b>Texto a buscar:</b></label>
@@ -32,37 +32,54 @@ mark { background: #9f9; font-weight: bold; }
 <div id="resultado"></div>
 
 <script>
-// -------- FUNCIÓN DE SIMILITUD AVANZADA --------
-function calcularSimilitud(texto, frase) {
+// --- FUNCIÓN DE SIMILITUD AVANZADA ---
+function calcularSimilitudYResaltado(texto, frase) {
   const textoL = texto.toLowerCase();
   const fraseL = frase.toLowerCase();
 
-  // Coincidencia exacta (100%)
-  if (textoL.includes(fraseL)) return 100;
-
   const palabrasTexto = textoL.split(/\W+/);
-  const palabrasFrase = fraseL.split(/\W+/);
-  const total = palabrasFrase.length;
+  const palabrasFrase = fraseL.split(/\W+/).filter(w => w.length > 1);
+
   let coincidencias = 0;
   let maxRacha = 0;
   let rachaActual = 0;
+  let penalizacion = 0;
 
-  for (const palabra of palabrasFrase) {
-    // buscar coincidencias parciales (contiene o similar por prefijo)
-    const encontrada = palabrasTexto.some(t => t.startsWith(palabra.slice(0, Math.max(3, palabra.length * 0.6))));
+  for (let i = 0; i < palabrasFrase.length; i++) {
+    const palabra = palabrasFrase[i];
+    const encontrada = palabrasTexto.some(t => t === palabra);
+    const parecida = palabrasTexto.some(t => t.startsWith(palabra.slice(0, Math.max(3, palabra.length * 0.6))));
+
     if (encontrada) {
       coincidencias++;
+      rachaActual++;
+      maxRacha = Math.max(maxRacha, rachaActual);
+    } else if (parecida) {
+      coincidencias += 0.5;
       rachaActual++;
       maxRacha = Math.max(maxRacha, rachaActual);
     } else {
       rachaActual = 0;
     }
+
+    // penalización si la palabra "no" está en la frase pero no en el texto cerca de su palabra asociada
+    if (palabra === "no" && !textoL.includes(" no ")) penalizacion += 10;
   }
 
-  // peso por coincidencias totales + rachas consecutivas
-  let base = (coincidencias / total) * 70;
-  let bonus = (maxRacha / total) * 30;
-  return Math.min(100, Math.round(base + bonus));
+  let base = (coincidencias / palabrasFrase.length) * 70;
+  let bonus = (maxRacha / palabrasFrase.length) * 30;
+  let similitud = Math.max(0, Math.min(100, Math.round(base + bonus - penalizacion)));
+
+  // --- RESALTAR TODAS LAS PALABRAS INDIVIDUALES ---
+  let textoMarcado = texto;
+  const palabrasUnicas = [...new Set(palabrasFrase)];
+  for (const palabra of palabrasUnicas) {
+    if (palabra.length < 2) continue;
+    const regex = new RegExp(`\\b(${palabra})\\b`, "gi");
+    textoMarcado = textoMarcado.replace(regex, '<mark>$1</mark>');
+  }
+
+  return { similitud, textoMarcado };
 }
 
 document.getElementById("buscar").addEventListener("click", async () => {
@@ -78,14 +95,14 @@ document.getElementById("buscar").addEventListener("click", async () => {
   try {
     let texto = await fetch("sumario.txt").then(r => r.text());
 
-    // ----------- LIMPIEZA DEL TEXTO -----------
+    // --- LIMPIEZA DEL TEXTO ---
     let lineas = texto.split(/\r?\n/);
     lineas = lineas.map(l => l.trim())
       .filter(l => l.length > 1)
       .filter(l => !/^[a-zA-Z0-9]$/.test(l))
       .filter(l => !/^https?:\/\//i.test(l));
 
-    const MIN_PALABRAS = 20;
+    const MIN_PALABRAS = 5;
     let limpio = [];
     let buffer = "";
     for (const l of lineas) {
@@ -100,19 +117,18 @@ document.getElementById("buscar").addEventListener("click", async () => {
     if (buffer) limpio.push(buffer);
     texto = limpio.join("\n");
 
-    // ----------- CÁLCULO DE SIMILITUD ----------- 
-    const similitud = calcularSimilitud(texto, frase);
-
-    // ----------- RESALTAR COINCIDENCIAS ----------- 
-    const regex = new RegExp(frase.split(/\s+/).slice(0,3).join(" "), "gi"); // resalta fragmentos representativos
-    texto = texto.replace(regex, match => `<mark>${match}</mark>`);
-
-    resultado.innerHTML = `<p><b>Similitud estimada:</b> ${similitud}%</p><hr>${texto}`;
-    info.textContent = `✅ Sumario cargado. Nivel de similitud: ${similitud}%`;
+    // --- CÁLCULO Y RESULTADO ---
+    const { similitud, textoMarcado } = calcularSimilitudYResaltado(texto, frase);
+    resultado.innerHTML = `<p><b>Similitud estimada:</b> ${similitud}%</p><hr>${textoMarcado}`;
+    info.textContent = `✅ Sumario analizado. Nivel de similitud: ${similitud}%`;
   } catch(err) {
     info.textContent = "❌ Error: " + err;
   }
+
+  // Antes de ejecutar el HTML, actualizar sumario con "python actualizar_boja.py"
+
 });
 </script>
 </body>
 </html>
+
