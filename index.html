@@ -22,7 +22,7 @@ button { margin-top: 1rem; margin-right: 0.5rem; padding: 10px 20px; font-size: 
 <h1>📜 Buscador Inteligente del BOJA</h1>
 
 <textarea id="textoBuscado" placeholder="Escribe o pega aquí las palabras a buscar...">
-  Subvenciones en régimen de concurrencia no competitiva a organizaciones sindicales para la financiación de gastos corrientes
+Subvenciones en régimen de concurrencia no competitiva a organizaciones sindicales para la financiación de gastos corrientes
 </textarea>
 <br>
 <button id="buscarExacto">🔎 Buscar palabras exactas</button>
@@ -31,13 +31,13 @@ button { margin-top: 1rem; margin-right: 0.5rem; padding: 10px 20px; font-size: 
 <div id="info"></div>
 
 <script>
-// -------- Normalizar texto --------
+// -------- Normalizar texto para comparar --------
 function normalizarTexto(t) {
   return t
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[.,;:()¿?!¡"]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")  // quitar tildes
+    .replace(/[.,;:()¿?!¡"]/g, "")    // quitar signos SOLO para comparación
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -51,16 +51,16 @@ function distanciaLevenshtein(a, b) {
     for (let j = 1; j <= b.length; j++) {
       const costo = a[i - 1] === b[j - 1] ? 0 : 1;
       dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,      // eliminación
-        dp[i][j - 1] + 1,      // inserción
-        dp[i - 1][j - 1] + costo // sustitución
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + costo
       );
     }
   }
   return dp[a.length][b.length];
 }
 
-// -------- Similitud basada en Levenshtein (porcentaje) --------
+// -------- Similitud basada en Levenshtein --------
 function similitudLevenshtein(a, b) {
   if (!a.length && !b.length) return 100;
   const dist = distanciaLevenshtein(a, b);
@@ -70,15 +70,18 @@ function similitudLevenshtein(a, b) {
 
 // -------- Búsqueda exacta --------
 async function buscarExacto() {
-  const frase = normalizarTexto(document.getElementById("textoBuscado").value);
+  const fraseOriginal = document.getElementById("textoBuscado").value.trim();
+  const frase = normalizarTexto(fraseOriginal);
   const info = document.getElementById("info");
   info.textContent = "🔍 Buscando palabras exactas...";
+
   if (!frase) return info.textContent = "⚠️ Escribe algo para buscar.";
 
   try {
-    let texto = await fetch("sumario.txt").then(r => r.text());
-    texto = normalizarTexto(texto);
-    if (texto.includes(frase)) {
+    let textoOriginal = await fetch("sumario.txt").then(r => r.text());
+    const textoNormalizado = normalizarTexto(textoOriginal);
+
+    if (textoNormalizado.includes(frase)) {
       info.textContent = "✅ Las palabras exactas se han encontrado en el texto.";
     } else {
       info.textContent = "❌ Las palabras exactas no se han encontrado en el texto.";
@@ -88,31 +91,42 @@ async function buscarExacto() {
   }
 }
 
-// -------- Búsqueda por similitud --------
+// -------- Búsqueda por similitud (manteniendo signos originales) --------
 async function buscarSimilar() {
-  const frase = normalizarTexto(document.getElementById("textoBuscado").value);
+  const fraseOriginal = document.getElementById("textoBuscado").value.trim();
+  const fraseNormalizada = normalizarTexto(fraseOriginal);
   const info = document.getElementById("info");
   info.textContent = "🧠 Analizando similitudes...";
-  if (!frase) return info.textContent = "⚠️ Escribe algo para buscar.";
+
+  if (!fraseNormalizada) return info.textContent = "⚠️ Escribe algo para buscar.";
 
   try {
-    let texto = await fetch("sumario.txt").then(r => r.text());
-    texto = normalizarTexto(texto);
-    const palabrasTexto = texto.split(" ");
-    const palabrasFrase = frase.split(" ");
+    let textoOriginal = await fetch("sumario.txt").then(r => r.text());
+
+    // Creamos dos versiones: una normalizada (para comparar) y otra original (para mostrar)
+    const textoNormalizado = normalizarTexto(textoOriginal);
+
+    const palabrasOriginales = textoOriginal.split(/\s+/);
+    const palabrasNormalizadas = textoNormalizado.split(" ");
+    const palabrasFrase = fraseNormalizada.split(" ");
     const ventana = palabrasFrase.length;
 
     let mejorScore = 0;
-    let mejorFragmento = "";
+    let mejorInicio = 0;
 
-    for (let i = 0; i <= palabrasTexto.length - ventana; i++) {
-      const fragmento = palabrasTexto.slice(i, i + ventana).join(" ");
-      const score = similitudLevenshtein(fragmento, frase);
+    // Recorrer con ventana deslizante
+    for (let i = 0; i <= palabrasNormalizadas.length - ventana; i++) {
+      const fragmentoNorm = palabrasNormalizadas.slice(i, i + ventana).join(" ");
+      const score = similitudLevenshtein(fragmentoNorm, fraseNormalizada);
+
       if (score > mejorScore) {
         mejorScore = score;
-        mejorFragmento = fragmento;
+        mejorInicio = i;
       }
     }
+
+    // Recuperar fragmento original (con puntuación)
+    const mejorFragmento = palabrasOriginales.slice(mejorInicio, mejorInicio + ventana).join(" ");
 
     info.textContent = `🔍 Máxima similitud: ${mejorScore}%\n🧩 Fragmento más parecido:\n${mejorFragmento}`;
   } catch (err) {
